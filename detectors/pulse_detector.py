@@ -10,7 +10,7 @@ from .base_detector import BaseDetector  # 继承我们的抽象基类
 class PulseDetector(BaseDetector):
     """
     一个用于脉冲信号检测的数字输入检测单元。
-    它负责检测特定端口的数字输入状态。
+    它负责检测特定端口的数字输入状态。DemoDevice,BID -- PCIE-1730,BID
     """
 
     def __init__(self, device_description="DemoDevice,BID#0", profile_path="../../profile/DemoDevice.xml", port=0):
@@ -45,7 +45,7 @@ class PulseDetector(BaseDetector):
             # 获取端口0的bit0状态
             bit0_state = (data[0] & 0x1)
             self._current_state = bit0_state
-            print(f"[{self.name}] - 端口 {self.port} 的 DI 状态: {self._current_state}")
+            # print(f"[{self.name}] - 端口 {self.port} 的 DI 状态: {self._current_state}")
 
     def get_result(self):
         """

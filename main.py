@@ -4,11 +4,14 @@ import time
 from core.main_controller import MainController
 from core.detection_manager import DetectionManager
 from core.plc_communicator import PLCCommunicator
+from core.sorting_task_manager import SortingTaskManager, Counter, WeightRange 
 from detectors.color_detector import ColorDetector
 # 新增: 导入你新的检测器
 from detectors.pulse_detector import PulseDetector
 from detectors.weight_detector import WeightDetector
 from config import PLC_HOST, PLC_PORT
+from api import start_api_server_thread
+
 
 # 模拟一个简单的信号源
 # 注意：现在我们的脉冲检测功能将由 PulseDetector 实例本身完成，
@@ -21,6 +24,18 @@ if __name__ == "__main__":
     plc_communicator = PLCCommunicator(PLC_HOST, PLC_PORT)
     pulse_detector = PulseDetector()  # 实例化脉冲检测器
 
+    # 新增: 实例化计数器和 SortingTaskManager
+    task_counter = Counter()
+    sorting_task_manager = SortingTaskManager(plc_communicator, task_counter)
+
+    # 配置重量分拣
+    weight_ranges = [
+        WeightRange(901, 9999, 1),  # >900g -> 等级1
+        WeightRange(801, 900, 2),  # 801-900g -> 等级2
+        WeightRange(501, 800, 3),  # 501-800g -> 等级3
+        # WeightRange(0, 500, 4),  # ≤500g -> 等级4
+    ]
+    sorting_task_manager.configure_weight_sorting(weight_ranges, True)
     # 2. 注册检测单元
     # 这里注册了你所有具体的检测单元实例
     detection_manager.register_detector(ColorDetector())
@@ -30,9 +45,13 @@ if __name__ == "__main__":
     # ... 注册其他检测器，例如： size_detector
 
     # 3. 实例化主控制器并传入依赖
-    # 这里我们不再使用模拟信号，而是将 PulseDetector 实例作为信号源。
-    main_controller = MainController(detection_manager, plc_communicator)
+    # 核心变更: 将 sorting_task_manager 实例作为参数传递给 MainController
+    main_controller = MainController(detection_manager, plc_communicator, sorting_task_manager)
 
+    # 启动API服务器（独立线程）
+    api_thread = start_api_server_thread(port=5000)
+    # 5. 启动 SortingTaskManager 任务
+    sorting_task_manager.start()
     # 4. 运行主循环
     print("开始运行主循环...")
     try:
@@ -53,3 +72,5 @@ if __name__ == "__main__":
         # 确保在程序结束时释放资源
         pulse_detector.dispose()
         plc_communicator.close()  # 在程序结束时关闭PLC连接
+        # 新增: 停止 SortingTaskManager 任务
+        sorting_task_manager.stop()
