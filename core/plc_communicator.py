@@ -323,11 +323,111 @@ class PLCCommunicator:
 
         return channel_data
 
+    def _parse_grades_data(self, registers: List[int], grade_start_offset: int) -> List[Dict[str, Any]]:
+        """
+        将原始寄存器数据解析为分级数据列表。
+        每个分级数据由3个寄存器组成:
+        0: 序号 (UINT16)
+        1: 分级 (UINT16)
+        2: 重量 (FLOAT32, 两个寄存器)
+        """
+        if not registers or len(registers) < self.GRADE_REGISTERS_PER_CHANNEL:
+            return []
+
+        grades_data = []
+        decoder = BinaryPayloadDecoder.fromRegisters(registers, byteorder=Endian.Big)
+
+        # 每3个寄存器代表一组分级数据
+        for i in range(10):  # 假设有10组数据
+            try:
+                # 序列号
+                sequence = decoder.decode_16bit_uint()
+                # 分级
+                grade = decoder.decode_16bit_uint()
+                # 重量，占两个寄存器
+                weight = decoder.decode_32bit_float()
+
+                grades_data.append({
+                    'sequence': sequence,
+                    'grade': grade,
+                    'weight': round(weight, 2)
+                })
+            except Exception as e:
+                print(f"解析Modbus数据时出错: {e}")
+                break
+        return grades_data
+
+    # def get_all_channels_grades_data(self) -> Dict[str, List[Dict[str, Any]]]:
+    #     """获取所有4个通道的分选数据"""
+    #     all_data = {}
+    #     for channel in ['A', 'B', 'C', 'D']:
+    #         all_data[f'channel_{channel}'] = self.get_channel_grades_data(channel)
+    #     return all_data
+
     def get_all_channels_grades_data(self) -> Dict[str, List[Dict[str, Any]]]:
-        """获取所有4个通道的分选数据"""
+        """获取所有4个通道的分选数据 - 优化版本，一次读取所有数据"""
+
+        # 获取所有通道的起始地址
+        channel_starts = {
+            'A': self.HOLDING_REGISTER_ADDRESSES['channel_a_start'],  # 12
+            'B': self.HOLDING_REGISTER_ADDRESSES['channel_b_start'],  # 42
+            'C': self.HOLDING_REGISTER_ADDRESSES['channel_c_start'],  # 72
+            'D': self.HOLDING_REGISTER_ADDRESSES['channel_d_start']  # 102
+        }
+
+        # 计算需要读取的总地址范围
+        # 从最小地址开始，到最大地址结束
+        min_address = min(channel_starts.values())  # 12
+        max_address = max(channel_starts.values()) + 10 * 3  # 102 + 30 = 132
+        total_registers = max_address - min_address  # 132 - 12 = 120个寄存器
+
+        # 一次性读取所有寄存器
+        all_registers = self._read_holding_registers(min_address, total_registers)
+
+        if not all_registers:
+            return {f'channel_{ch}': None for ch in ['A', 'B', 'C', 'D']}
+
         all_data = {}
-        for channel in ['A', 'B', 'C', 'D']:
-            all_data[f'channel_{channel}'] = self.get_channel_grades_data(channel)
+
+        # 为每个通道解析数据
+        for channel_letter, start_address in channel_starts.items():
+            # 计算在all_registers中的偏移位置
+            offset = start_address - min_address
+
+            # 提取该通道的30个寄存器(10组 × 3寄存器/组)
+            channel_registers = all_registers[offset:offset + 30]
+
+            if len(channel_registers) < 30:
+                # 如果数据不完整，该通道设为None
+                all_data[f'channel_{channel_letter}'] = None
+                continue
+
+            # 解析该通道的10组数据
+            channel_data = []
+            for i in range(10):
+                base_index = i * 3
+
+                # 解析重量 (DInt, 2个寄存器)
+                weight_registers = channel_registers[base_index:base_index + 2]
+                decoder = BinaryPayloadDecoder.fromRegisters(
+                    weight_registers,
+                    byteorder=Endian.Big,
+                    wordorder=Endian.Big
+                )
+                weight = decoder.decode_32bit_int()
+
+                # 解析分选值 (Word, 1个寄存器)
+                grade = channel_registers[base_index + 2]
+
+                channel_data.append({
+                    "sequence": i + 1,
+                    "weight": weight,
+                    "grade": grade,
+                    "address": start_address + base_index + 2  # 分选值的地址
+                })
+
+            all_data[f'channel_{channel_letter}'] = channel_data
+
         return all_data
 
     def set_channel_grade(self, channel_letter: str, sequence: int, grade: int) -> bool:

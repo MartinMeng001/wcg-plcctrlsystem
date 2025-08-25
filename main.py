@@ -11,7 +11,7 @@ from detectors.pulse_detector import PulseDetector
 from detectors.weight_detector import WeightDetector
 from config import PLC_HOST, PLC_PORT
 from api import start_api_server_thread
-
+from services import create_weight_service
 
 # 模拟一个简单的信号源
 # 注意：现在我们的脉冲检测功能将由 PulseDetector 实例本身完成，
@@ -26,7 +26,8 @@ if __name__ == "__main__":
 
     # 新增: 实例化计数器和 SortingTaskManager
     task_counter = Counter()
-    sorting_task_manager = SortingTaskManager(plc_communicator, task_counter)
+    async_weight_service = create_weight_service()
+    sorting_task_manager = SortingTaskManager(plc_communicator, async_weight_service, task_counter)
 
     # 配置重量分拣
     weight_ranges = [

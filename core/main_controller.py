@@ -26,15 +26,15 @@ class MainController:
         is_falling_edge = (current_signal == 0 and self.last_signal_state == 1)
 
         if is_rising_edge:
-            print("[MainController] - 检测到上升沿，开始检测！")
+            # print("[MainController] - 检测到上升沿，开始检测！")
             #self.detection_manager.start_all_detections()
             # 在这里增加计数值
             new_count = self.task_manager.increment_count()
-            print(f"[MainController] - 计数器更新：新值为 {new_count}")
+            # print(f"[MainController] - 计数器更新：新值为 {new_count}")
 
-        if is_falling_edge:
+        # if is_falling_edge:
             # ... (这部分代码保持不变)
-            print("[MainController] - 检测到下降沿，检查结果并执行！")
+            # print("[MainController] - 检测到下降沿，检查结果并执行！")
             # all_results = self.detection_manager.get_all_results()
             # weight_results = all_results.get('WeightDetector', {})
             # color_result = all_results.get('ColorDetector')

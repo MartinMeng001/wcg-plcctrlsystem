@@ -263,7 +263,7 @@ class AsyncWeightDetectionService:
         timestamp = datetime.now()
         grade, kick_channel = self.determine_grade_fast(weight)
 
-        if grade is None:
+        if grade is None or grade == 1:
             record = WeightDetectionRecord(
                 id=0,
                 timestamp=timestamp,

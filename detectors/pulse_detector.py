@@ -13,7 +13,7 @@ class PulseDetector(BaseDetector):
     它负责检测特定端口的数字输入状态。DemoDevice,BID -- PCIE-1730,BID
     """
 
-    def __init__(self, device_description="DemoDevice,BID#0", profile_path="../../profile/DemoDevice.xml", port=0):
+    def __init__(self, device_description="PCIE-1730,BID#0", profile_path="../../profile/DemoDevice.xml", port=0):
         super().__init__('PulseDetector')
         self.device_description = device_description
         self.profile_path = profile_path

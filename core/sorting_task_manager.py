@@ -4,7 +4,9 @@ import time
 import threading
 from datetime import datetime
 from typing import List, Dict, Optional, Any
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass
+from services.weight.AsyncWeightDetectionService import AsyncWeightDetectionService
 
 
 @dataclass
@@ -112,7 +114,7 @@ class Counter:
 class SortingTaskManager:
     """分拣任务管理器"""
 
-    def __init__(self, plc_communicator, counter: Counter = None):
+    def __init__(self, plc_communicator, weight_service: AsyncWeightDetectionService, counter: Counter = None):
         """
         初始化分拣任务管理器
 
@@ -121,7 +123,11 @@ class SortingTaskManager:
             counter: 计数器实例，如果为None则创建新的
         """
         self.plc = plc_communicator
+        # 新增：创建一个线程池来处理写入任务
+        self._executor = ThreadPoolExecutor(max_workers=6)
+
         self.counter = counter if counter is not None else Counter()
+        self.weight_service = weight_service  # 新增：保存服务实例
 
         # 配置参数
         self.weight_ranges: List[WeightRange] = []  # 重量分拣配置
@@ -135,7 +141,7 @@ class SortingTaskManager:
         self._lock = threading.Lock()
 
         # 监控参数
-        self.monitor_interval = 0.1  # 监控间隔（秒）
+        self.monitor_interval = 0.05  # 监控间隔（秒）
         self.log_interval = 100  # 每100次循环打印一次状态
         self.loop_count = 0
 
@@ -331,41 +337,88 @@ class SortingTaskManager:
             for item in channel_data:
                 if item['grade'] == 100:  # 待处理
                     # 🔑 优先检查并执行自定义分拣
-                    if self.enable_custom_sorting and self._has_pending_custom_task_for_channel(channel_letter,
-                                                                                                item['sequence']):
-                        continue  # 自定义分拣已处理，跳过重量分拣
+                    # if self.enable_custom_sorting and self._has_pending_custom_task_for_channel(channel_letter,
+                    #                                                                             item['sequence']):
+                    #     continue  # 自定义分拣已处理，跳过重量分拣
 
                     # 执行重量分拣
                     weight = item['weight']
+                    detection_record = self.weight_service.process_detection_fast(weight)
 
-                    # 根据重量范围确定分拣等级
-                    for weight_range in self.weight_ranges:
-                        if weight_range.matches(weight):
-                            if self.plc.set_channel_grade(channel_letter, item['sequence'], weight_range.grade):
-                                print(
-                                    f"[{datetime.now()}] ✅ 通道{channel_letter}分选{item['sequence']}: 重量{weight}g → 等级{weight_range.grade} (重量分拣)")
-                                processed_count += 1
-                            else:
-                                print(f"[{datetime.now()}] ❌ 通道{channel_letter}分选{item['sequence']}: 设置失败")
-                            break
+                    # 根据异步服务返回的分级结果进行分拣
+                    if detection_record.detection_success:
+                        self._executor.submit(
+                            self.plc.set_channel_grade,
+                            channel_letter,
+                            item['sequence'],
+                            detection_record.kick_channel
+                        )
+                        processed_count += 1
+                        # if self.plc.set_channel_grade(channel_letter, item['sequence'], detection_record.kick_channel):
+                        #     print(
+                        #         f"[{datetime.now()}] ✅ 通道{channel_letter}分选{item['sequence']}: 重量{weight}g → 等级{detection_record.determined_grade} (重量分拣)")
+                        #     processed_count += 1
+                        # else:
+                        #     print(f"[{datetime.now()}] ❌ 通道{channel_letter}分选{item['sequence']}: 设置失败")
                     else:
-                        # 没有匹配的重量范围
-                        self.plc.set_channel_grade(channel_letter, item['sequence'], 0)
-                        print(
-                            f"[{datetime.now()}] ⚠️ 通道{channel_letter}分选{item['sequence']}: 重量{weight}g 无匹配,默认0")
+                        # 检测失败的情况
+                        self._executor.submit(
+                            self.plc.set_channel_grade,
+                            channel_letter,
+                            item['sequence'],
+                            0
+                        )
+                        # self.plc.set_channel_grade(channel_letter, item['sequence'], 0)
+                        # print(
+                        #     f"[{datetime.now()}] ⚠️ 通道{channel_letter}分选{item['sequence']}: 重量{weight}g 无匹配,默认0")
 
-        if processed_count > 0:
-            self.stats['weight_sorted_count'] += processed_count
-            self.stats['total_processed'] += processed_count
-            print(f"[{datetime.now()}] 🎯 本次按重量分选了 {processed_count} 个")
+            if processed_count > 0:
+                self.stats['weight_sorted_count'] += processed_count
+                self.stats['total_processed'] += processed_count
+                print(f"[{datetime.now()}] 🎯 本次按重量分选了 {processed_count} 个")
+                    # 根据重量范围确定分拣等级
+        #             for weight_range in self.weight_ranges:
+        #                 if weight_range.matches(weight):
+        #                     if self.plc.set_channel_grade(channel_letter, item['sequence'], weight_range.grade):
+        #                         self.weight_service.process_detection_fast(weight)
+        #                         print(
+        #                             f"[{datetime.now()}] ✅ 通道{channel_letter}分选{item['sequence']}: 重量{weight}g → 等级{weight_range.grade} (重量分拣)")
+        #                         processed_count += 1
+        #                     else:
+        #                         print(f"[{datetime.now()}] ❌ 通道{channel_letter}分选{item['sequence']}: 设置失败")
+        #                     break
+        #             else:
+        #                 # 没有匹配的重量范围
+        #                 self.plc.set_channel_grade(channel_letter, item['sequence'], 0)
+        #                 print(
+        #                     f"[{datetime.now()}] ⚠️ 通道{channel_letter}分选{item['sequence']}: 重量{weight}g 无匹配,默认0")
+        #
+        # if processed_count > 0:
+        #     self.stats['weight_sorted_count'] += processed_count
+        #     self.stats['total_processed'] += processed_count
+        #     print(f"[{datetime.now()}] 🎯 本次按重量分选了 {processed_count} 个")
 
     def _monitor_loop(self):
         """监控循环"""
         print(f"[{datetime.now()}] 分拣任务管理器监控线程已启动")
         self.stats['start_time'] = datetime.now()
 
+        # 新增：记录上一次循环的开始时间
+        last_loop_time = time.time()
+
         while self.running:
             try:
+                # 记录当前循环的开始时间
+                current_loop_time = time.time()
+                # 计算与上一次循环的时间间隔
+                time_diff_ms = (current_loop_time - last_loop_time) * 1000
+
+                # 检查时间间隔是否超过100ms
+                if time_diff_ms > 1000:
+                    print(f"[{datetime.now()}] ⚠️ 监控循环延迟警告: 上次运行间隔为 {time_diff_ms:.2f}ms，超过100ms")
+
+                # 更新上一次循环时间
+                last_loop_time = current_loop_time
                 # 读取所有通道数据
                 all_channels_data = self.plc.get_all_channels_grades_data()
 
