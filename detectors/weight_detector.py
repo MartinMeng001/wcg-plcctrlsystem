@@ -64,6 +64,7 @@ class OptimizedWeightDetector(BaseDetector):
         self.plc_communicator = plc_communicator
         self.weight_service = weight_service
         self._last_record = None
+        self._counter = 0
         self._results = {}  # 保持与原WeightDetector接口兼容
 
     def start_detection(self):
@@ -93,6 +94,9 @@ class OptimizedWeightDetector(BaseDetector):
         detection_time = time.perf_counter() - start_time
         if detection_time > 0.005:  # 超过5ms警告
             print(f"[PERF] 检测耗时: {detection_time * 1000:.2f}ms")
+
+    def start_detection_with_counter(self, counter):
+        self._counter = counter
 
     def _read_weight_fast(self) -> Optional[float]:
         """

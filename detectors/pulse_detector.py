@@ -13,7 +13,7 @@ class PulseDetector(BaseDetector):
     它负责检测特定端口的数字输入状态。DemoDevice,BID -- PCIE-1730,BID
     """
 
-    def __init__(self, device_description="PCIE-1730,BID#0", profile_path="../../profile/DemoDevice.xml", port=0):
+    def __init__(self, device_description="DemoDevice,BID#0", profile_path="../../profile/DemoDevice.xml", port=0):
         super().__init__('PulseDetector')
         self.device_description = device_description
         self.profile_path = profile_path
@@ -21,6 +21,7 @@ class PulseDetector(BaseDetector):
         self.di_ctrl = None  # 存储 InstantDiCtrl 实例
         self._last_state = -1  # 上一个周期的端口状态
         self._current_state = -1  # 当前周期的端口状态
+        self._counter = 0
 
     def start_detection(self):
         """
@@ -46,6 +47,9 @@ class PulseDetector(BaseDetector):
             bit0_state = (data[0] & 0x1)
             self._current_state = bit0_state
             # print(f"[{self.name}] - 端口 {self.port} 的 DI 状态: {self._current_state}")
+
+    def start_detection_with_counter(self, counter):
+        self._counter = counter
 
     def get_result(self):
         """

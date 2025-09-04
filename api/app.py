@@ -34,7 +34,10 @@ def create_app(config=None):
 
     # 注册API蓝图
     from .weight_api import weight_bp
+    from .sugar_api import sugar_bp  # 新增: 糖度API蓝图
+
     app.register_blueprint(weight_bp, url_prefix='/api')
+    app.register_blueprint(sugar_bp, url_prefix='/api')  # 新增
 
     # 全局错误处理
     @app.errorhandler(404)
@@ -61,5 +64,57 @@ def create_app(config=None):
             'timestamp': datetime.now().isoformat(),
             'version': '1.0.0'
         }
+
+    # 新增: 系统概览端点
+    @app.route('/api/system/overview')
+    def system_overview():
+        """获取系统整体状态概览"""
+        try:
+            from .weight_api import get_weight_service
+            from .sugar_api import get_sugar_service, get_detection_manager
+
+            # 获取各服务状态
+            weight_service = get_weight_service()
+            sugar_service = get_sugar_service()
+            detection_manager = get_detection_manager()
+
+            weight_status = weight_service.get_status()
+            sugar_status = sugar_service.get_status()
+
+            # 获取实时检测数据
+            all_results = detection_manager.get_all_results()
+
+            return {
+                'success': True,
+                'data': {
+                    'weight_detection': {
+                        'status': weight_status.get('status'),
+                        'recent_records': weight_status.get('recent_records_count', 0),
+                        'last_detection': weight_status.get('last_detection_time')
+                    },
+                    'sugar_detection': {
+                        'status': sugar_status.get('status'),
+                        'recent_records': sugar_status.get('recent_records_count', 0),
+                        'last_detection': sugar_status.get('last_detection_time'),
+                        'realtime_status': all_results.get('SugarDetector', {}).get('status')
+                    },
+                    'detectors': {
+                        detector.name: {
+                            'active': hasattr(detector,
+                                              'is_detection_active') and detector.is_detection_active() if hasattr(
+                                detector, 'is_detection_active') else True
+                        }
+                        for detector in detection_manager.detectors
+                    },
+                    'timestamp': datetime.now().isoformat()
+                }
+            }
+
+        except Exception as e:
+            return {
+                'success': False,
+                'message': f'获取系统概览失败: {str(e)}',
+                'timestamp': datetime.now().isoformat()
+            }, 500
 
     return app

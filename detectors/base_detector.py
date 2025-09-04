@@ -20,6 +20,14 @@ class BaseDetector(ABC):
         pass
 
     @abstractmethod
+    def start_detection_with_counter(self, counter):
+        """
+        使用配置信息开始执行具体的检测任务。
+        此方法应传入一个 `counter` 字典或对象来配置检测过程。
+        """
+        pass
+
+    @abstractmethod
     def get_result(self):
         """
         获取检测结果。

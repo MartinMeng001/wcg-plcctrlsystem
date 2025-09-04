@@ -27,6 +27,10 @@ class DetectionManager:
             detector.start_detection()
         print("[DetectionManager] - 所有检测已启动。")
 
+    def sync_counts(self, count):
+        for detector in self.detectors:
+            detector.start_detection_with_counter(count)
+
     def get_all_results(self):
         """
         从所有检测单元获取结果并组合。

@@ -1,4 +1,5 @@
 # core/plc_communicator.py (重构版)
+from datetime import datetime
 
 from pymodbus.client.sync import ModbusTcpClient
 from pymodbus.payload import BinaryPayloadBuilder, BinaryPayloadDecoder
@@ -61,19 +62,19 @@ class PLCCommunicator:
 
             # 通道称重数据起始地址
             'channel_a_start': 12,  # 40013在pymodbus中的地址（40013-40001=12）
-            'channel_b_start': 42,  # 40043在pymodbus中的地址（40043-40001=42）
-            'channel_c_start': 72,  # 40073在pymodbus中的地址（40073-40001=72）
-            'channel_d_start': 102,  # 40103在pymodbus中的地址（40103-40001=102）
+            'channel_b_start': 72,  # 40073在pymodbus中的地址（40073-40001=72）
+            'channel_c_start': 132,  # 40133在pymodbus中的地址（40133-40001=132）
+            'channel_d_start': 192,  # 40193在pymodbus中的地址（40193-40001=192）
 
             # 出口框相关
-            'outlet_box_weight_set': 132,  # 40133在pymodbus中的地址（40133-40001=132）
-            'outlet_box_actual_weight': 156,  # 40157在pymodbus中的地址（40157-40001=156）
-            'outlet_valve_interval': 181,  # 40182在pymodbus中的地址（40182-40001=181）
-            'grader_frequency_set': 193,  # 40194在pymodbus中的地址（40194-40001=193）
+            'outlet_box_weight_set': 252,  # 40253在pymodbus中的地址（40253-40001=252）
+            'outlet_box_actual_weight': 276,  # 40157在pymodbus中的地址（40277-40001=276）
+            'outlet_valve_interval': 301,  # 40302在pymodbus中的地址（40302-40001=301）
+            'grader_frequency_set': 313,  # 40314在pymodbus中的地址（40314-40001=313）
 
             # 统计数据
-            'total_weight': 195,  # 40196在pymodbus中的地址（40196-40001=195）
-            'total_count': 197,  # 40198在pymodbus中的地址（40198-40001=197）
+            'total_weight': 315,  # 40316在pymodbus中的地址（40316-40001=315）
+            'total_count': 317,  # 40318在pymodbus中的地址（40318-40001=317）
         }
 
         print(f"PLC通信模块已初始化，目标: {host}:{port}")
@@ -287,7 +288,7 @@ class PLCCommunicator:
             channel: 通道字母 'A', 'B', 'C', 'D'
 
         Returns:
-            包含10个分选数据的列表，每个包含序号、重量、分选值和地址
+            包含20个分选数据的列表，每个包含序号、重量、分选值和地址
         """
         channel = channel.upper()
         if channel not in ['A', 'B', 'C', 'D']:
@@ -296,14 +297,14 @@ class PLCCommunicator:
         channel_start_key = f'channel_{channel.lower()}_start'
         start_address = self.HOLDING_REGISTER_ADDRESSES[channel_start_key]
 
-        total_registers = 10 * 3  # 10组 × 3寄存器/组
+        total_registers = 20 * 3  # 20组 × 3寄存器/组
         registers = self._read_holding_registers(start_address, total_registers)
 
         if not registers:
             return None
 
         channel_data = []
-        for i in range(10):
+        for i in range(20):
             base_index = i * 3
 
             # 解析重量 (DInt, 2个寄存器)
@@ -338,7 +339,7 @@ class PLCCommunicator:
         decoder = BinaryPayloadDecoder.fromRegisters(registers, byteorder=Endian.Big)
 
         # 每3个寄存器代表一组分级数据
-        for i in range(10):  # 假设有10组数据
+        for i in range(20):  # 假设有10组数据
             try:
                 # 序列号
                 sequence = decoder.decode_16bit_uint()
@@ -364,7 +365,7 @@ class PLCCommunicator:
     #         all_data[f'channel_{channel}'] = self.get_channel_grades_data(channel)
     #     return all_data
 
-    def get_all_channels_grades_data(self) -> Dict[str, List[Dict[str, Any]]]:
+    def get_all_channels_grades_data2(self) -> Dict[str, List[Dict[str, Any]]]:
         """获取所有4个通道的分选数据 - 优化版本，一次读取所有数据"""
 
         # 获取所有通道的起始地址
@@ -378,7 +379,7 @@ class PLCCommunicator:
         # 计算需要读取的总地址范围
         # 从最小地址开始，到最大地址结束
         min_address = min(channel_starts.values())  # 12
-        max_address = max(channel_starts.values()) + 10 * 3  # 102 + 30 = 132
+        max_address = max(channel_starts.values()) + 20 * 3  # 102 + 30 = 132
         total_registers = max_address - min_address  # 132 - 12 = 120个寄存器
 
         # 一次性读取所有寄存器
@@ -394,7 +395,7 @@ class PLCCommunicator:
             # 计算在all_registers中的偏移位置
             offset = start_address - min_address
 
-            # 提取该通道的30个寄存器(10组 × 3寄存器/组)
+            # 提取该通道的30个寄存器(20组 × 3寄存器/组)
             channel_registers = all_registers[offset:offset + 30]
 
             if len(channel_registers) < 30:
@@ -402,9 +403,9 @@ class PLCCommunicator:
                 all_data[f'channel_{channel_letter}'] = None
                 continue
 
-            # 解析该通道的10组数据
+            # 解析该通道的20组数据
             channel_data = []
-            for i in range(10):
+            for i in range(20):
                 base_index = i * 3
 
                 # 解析重量 (DInt, 2个寄存器)
@@ -430,6 +431,159 @@ class PLCCommunicator:
 
         return all_data
 
+    def get_all_channels_grades_data(self) -> Dict[str, List[Dict[str, Any]]]:
+        """
+        获取所有4个通道的分选数据 - 分两次读取版本
+        第一次读取通道A和B，第二次读取通道C和D
+        每次读取120个寄存器，避免单次读取数据量过大
+        """
+        all_data = {}
+
+        try:
+            # 第一次读取：通道A和B
+            # print(f"[{datetime.now()}] 开始读取通道A和B...")
+            success_ab = self._read_channels_batch(['A', 'B'], all_data)
+
+            # 第二次读取：通道C和D
+            # print(f"[{datetime.now()}] 开始读取通道C和D...")
+            success_cd = self._read_channels_batch(['C', 'D'], all_data)
+
+            # 检查读取结果
+            if success_ab or success_cd:
+                successful_channels = []
+                failed_channels = []
+
+                for channel in ['A', 'B', 'C', 'D']:
+                    channel_key = f'channel_{channel}'
+                    if all_data.get(channel_key) is not None:
+                        successful_channels.append(channel)
+                    else:
+                        failed_channels.append(channel)
+
+                # if successful_channels:
+                #     print(f"[{datetime.now()}] 读取成功的通道: {', '.join(successful_channels)}")
+                # if failed_channels:
+                #     print(f"[{datetime.now()}] 读取失败的通道: {', '.join(failed_channels)}")
+
+                return all_data
+            else:
+                print(f"[{datetime.now()}] 所有通道读取都失败")
+                return {f'channel_{ch}': None for ch in ['A', 'B', 'C', 'D']}
+
+        except Exception as e:
+            print(f"[{datetime.now()}] 读取所有通道数据异常: {e}")
+            return {f'channel_{ch}': None for ch in ['A', 'B', 'C', 'D']}
+
+    def _read_channels_batch(self, channels: List[str], all_data: Dict) -> bool:
+        """
+        批量读取指定通道的数据
+
+        Args:
+            channels: 要读取的通道列表，如['A', 'B']
+            all_data: 用于存储结果的字典
+
+        Returns:
+            bool: 是否至少有一个通道读取成功
+        """
+        if not channels:
+            return False
+
+        # 获取通道地址信息
+        channel_addresses = []
+        for channel_letter in channels:
+            start_address = self.HOLDING_REGISTER_ADDRESSES[f'channel_{channel_letter.lower()}_start']
+            channel_addresses.append((channel_letter, start_address))
+
+        # 按地址排序，确保连续读取
+        channel_addresses.sort(key=lambda x: x[1])
+
+        # 计算读取范围
+        min_address = min(addr for _, addr in channel_addresses)
+        max_address = max(addr for _, addr in channel_addresses) + 60  # 每通道60个寄存器
+        total_registers = max_address - min_address
+
+        # print(
+        #     f"[{datetime.now()}] 批量读取通道{channels}: 地址{min_address}-{max_address - 1}, 共{total_registers}个寄存器")
+
+        # 执行读取
+        with self._lock:
+            client = self._get_client()
+            if not client.is_socket_open() and not client.connect():
+                print(f"[{datetime.now()}] PLC连接失败")
+                for channel_letter in channels:
+                    all_data[f'channel_{channel_letter}'] = None
+                return False
+
+            try:
+                # 读取寄存器数据
+                registers_result = client.read_holding_registers(min_address, total_registers)
+                if registers_result.isError():
+                    print(f"[{datetime.now()}] 批量读取失败: {registers_result}")
+                    for channel_letter in channels:
+                        all_data[f'channel_{channel_letter}'] = None
+                    return False
+
+                all_registers = registers_result.registers
+                success_count = 0
+
+                # 为每个通道解析数据
+                for channel_letter, start_address in channel_addresses:
+                    try:
+                        # 计算在读取数据中的偏移
+                        offset = start_address - min_address
+
+                        # 提取该通道的60个寄存器
+                        channel_registers = all_registers[offset:offset + 60]
+
+                        if len(channel_registers) < 60:
+                            print(
+                                f"[{datetime.now()}] 通道{channel_letter}数据不完整: 期望60个，实际{len(channel_registers)}个")
+                            all_data[f'channel_{channel_letter}'] = None
+                            continue
+
+                        # 解析该通道的20个位置数据
+                        channel_data = []
+                        for i in range(20):
+                            base_index = i * 3
+
+                            # 解析重量 (DInt, 2个寄存器)
+                            weight_registers = channel_registers[base_index:base_index + 2]
+                            decoder = BinaryPayloadDecoder.fromRegisters(
+                                weight_registers,
+                                byteorder=Endian.Big,
+                                wordorder=Endian.Big
+                            )
+                            weight = decoder.decode_32bit_int()
+
+                            # 解析分选值 (Word, 1个寄存器)
+                            grade = channel_registers[base_index + 2]
+
+                            channel_data.append({
+                                "sequence": i + 1,
+                                "weight": weight,
+                                "grade": grade,
+                                "address": start_address + base_index + 2  # 分选值的地址
+                            })
+
+                        all_data[f'channel_{channel_letter}'] = channel_data
+                        success_count += 1
+
+                        # 统计该通道的数据情况
+                        pending_count = sum(1 for item in channel_data if item['grade'] == 100)
+                        # print(f"[{datetime.now()}] 通道{channel_letter}解析成功: 20个位置, {pending_count}个待处理")
+
+                    except Exception as e:
+                        print(f"[{datetime.now()}] 通道{channel_letter}解析失败: {e}")
+                        all_data[f'channel_{channel_letter}'] = None
+
+                return success_count > 0
+
+            except Exception as e:
+                print(f"[{datetime.now()}] 批量读取异常: {e}")
+                for channel_letter in channels:
+                    all_data[f'channel_{channel_letter}'] = None
+                return False
+
     def set_channel_grade(self, channel_letter: str, sequence: int, grade: int) -> bool:
         """
         根据通道、序号和分选值，向PLC写入分选结果。
@@ -444,7 +598,7 @@ class PLCCommunicator:
             写入是否成功
         """
         channel_letter = channel_letter.upper()
-        if channel_letter not in ['A', 'B', 'C', 'D'] or sequence < 1 or sequence > 10:
+        if channel_letter not in ['A', 'B', 'C', 'D'] or sequence < 1 or sequence > 20:
             print(f"参数错误: 通道={channel_letter}, 序号={sequence}")
             return False
 
@@ -463,6 +617,209 @@ class PLCCommunicator:
         # 写入分选值
         return self._write_word(grade_addr, grade)
 
+    def _convert_structured_data_to_registers(self, all_channels_data: Dict[str, List[Dict[str, Any]]]) -> List[int]:
+        """
+        将结构化的通道数据转换回原始寄存器数组
+        这是 get_all_channels_grades_data() 解析过程的逆向操作
+
+        Args:
+            all_channels_data: 结构化的通道数据
+
+        Returns:
+            完整的寄存器数组，对应原始的240个寄存器
+        """
+        from pymodbus.payload import BinaryPayloadBuilder
+        from pymodbus.constants import Endian
+
+        # 计算总地址范围
+        channel_starts = {
+            'A': self.HOLDING_REGISTER_ADDRESSES['channel_a_start'],  # 12
+            'B': self.HOLDING_REGISTER_ADDRESSES['channel_b_start'],  # 72
+            'C': self.HOLDING_REGISTER_ADDRESSES['channel_c_start'],  # 132
+            'D': self.HOLDING_REGISTER_ADDRESSES['channel_d_start']  # 192
+        }
+
+        min_address = min(channel_starts.values())  # 12
+        max_address = max(channel_starts.values()) + 20 * 3  # 192 + 60 = 252
+        total_registers = max_address - min_address  # 240个寄存器
+
+        # 初始化寄存器数组
+        registers = [0] * total_registers
+
+        # 为每个通道转换数据
+        for channel_letter in ['A', 'B', 'C', 'D']:
+            channel_key = f'channel_{channel_letter}'
+            channel_data = all_channels_data.get(channel_key)
+
+            if not channel_data:
+                continue
+
+            start_address = channel_starts[channel_letter]
+            offset = start_address - min_address
+
+            # 转换该通道的20个位置数据
+            for item in channel_data:
+                sequence = item['sequence']
+                weight = item['weight']
+                grade = item['grade']
+
+                # 计算在寄存器数组中的位置
+                base_index = offset + (sequence - 1) * 3
+
+                # 转换重量为2个寄存器 (DInt)
+                builder = BinaryPayloadBuilder(byteorder=Endian.Big, wordorder=Endian.Big)
+                builder.add_32bit_int(weight)
+                weight_registers = builder.build()
+
+                # 填入寄存器数组
+                registers[base_index] = weight_registers[0]  # 重量低位
+                registers[base_index + 1] = weight_registers[1]  # 重量高位
+                registers[base_index + 2] = grade  # 分选等级
+
+        return registers
+
+    def batch_write_from_cached_data(self, modified_channels_data: Dict[str, List[Dict[str, Any]]]) -> bool:
+        """
+        基于缓存和修改后的结构化数据进行批量写入
+        分两次写入：第一次写入通道A和B，第二次写入通道C和D
+        每次写入120个寄存器，避免单次写入数据量过大
+
+        Args:
+            modified_channels_data: 已修改的结构化通道数据
+
+        Returns:
+            写入是否成功
+        """
+        try:
+            # print(f"[{datetime.now()}] 开始分批批量写入所有通道数据...")
+
+            # 第一次写入：通道A和B
+            success_ab = self._batch_write_channels_group(['A', 'B'], modified_channels_data)
+
+            # 第二次写入：通道C和D
+            success_cd = self._batch_write_channels_group(['C', 'D'], modified_channels_data)
+
+            # 检查写入结果
+            if success_ab and success_cd:
+                # print(f"[{datetime.now()}] ✅ 所有通道批量写入成功")
+                return True
+            elif success_ab or success_cd:
+                print(f"[{datetime.now()}] ⚠️ 部分通道写入成功 - AB组:{success_ab}, CD组:{success_cd}")
+                return False
+            else:
+                print(f"[{datetime.now()}] ❌ 所有通道写入失败")
+                return False
+
+        except Exception as e:
+            print(f"[{datetime.now()}] 批量写入异常: {e}")
+            return False
+
+    def _batch_write_channels_group(self, channels: List[str],
+                                    modified_channels_data: Dict[str, List[Dict[str, Any]]]) -> bool:
+        """
+        批量写入指定通道组的数据
+
+        Args:
+            channels: 要写入的通道列表，如['A', 'B']
+            modified_channels_data: 已修改的结构化通道数据
+
+        Returns:
+            bool: 是否写入成功
+        """
+        if not channels:
+            return False
+
+        try:
+            # 获取通道地址信息
+            channel_addresses = []
+            for channel_letter in channels:
+                start_address = self.HOLDING_REGISTER_ADDRESSES[f'channel_{channel_letter.lower()}_start']
+                channel_addresses.append((channel_letter, start_address))
+
+            # 按地址排序，确保连续写入
+            channel_addresses.sort(key=lambda x: x[1])
+
+            # 计算写入范围
+            min_address = min(addr for _, addr in channel_addresses)
+            max_address = max(addr for _, addr in channel_addresses) + 60  # 每通道60个寄存器
+            total_registers = max_address - min_address
+
+            # print(
+            #     f"[{datetime.now()}] 准备写入通道{channels}: 地址{min_address}-{max_address - 1}, 共{total_registers}个寄存器")
+
+            # 构建寄存器数组
+            registers = [0] * total_registers
+
+            # 为每个通道转换数据
+            for channel_letter, start_address in channel_addresses:
+                channel_key = f'channel_{channel_letter}'
+                channel_data = modified_channels_data.get(channel_key)
+
+                if not channel_data:
+                    print(f"[{datetime.now()}] 警告: 通道{channel_letter}数据为空，跳过")
+                    continue
+
+                # 计算在寄存器数组中的偏移
+                offset = start_address - min_address
+
+                # 转换该通道的20个位置数据
+                for item in channel_data:
+                    sequence = item['sequence']
+                    weight = item['weight']
+                    grade = item['grade']
+
+                    # 计算在寄存器数组中的位置
+                    base_index = offset + (sequence - 1) * 3
+
+                    # 转换重量为2个寄存器 (DInt)
+                    if weight < 0:
+                        # 处理负数（二补码表示）
+                        weight_uint32 = (1 << 32) + weight
+                    else:
+                        weight_uint32 = weight
+                    # 分解为两个16位寄存器（大端序）
+                    high_word = (weight_uint32 >> 16) & 0xFFFF  # 高16位
+                    low_word = weight_uint32 & 0xFFFF  # 低16位
+                    # 填入寄存器数组
+                    if base_index + 2 < len(registers):
+                        registers[base_index] = high_word  # 重量高位
+                        registers[base_index + 1] = low_word  # 重量低位
+                        registers[base_index + 2] = grade  # 分选等级
+                    # builder = BinaryPayloadBuilder(byteorder=Endian.Big, wordorder=Endian.Big)
+                    # builder.add_32bit_int(weight)
+                    # weight_registers = builder.build()
+
+                    # 填入寄存器数组
+                    # if base_index + 2 < len(registers):
+                    #     registers[base_index] = weight_registers[0]  # 重量低位
+                    #     registers[base_index + 1] = weight_registers[1]  # 重量高位
+                    #     registers[base_index + 2] = grade  # 分选等级
+
+            # 执行写入
+            with self._lock:
+                client = self._get_client()
+                if not client.is_socket_open() and not client.connect():
+                    print(f"[{datetime.now()}] PLC连接失败")
+                    return False
+
+                try:
+                    # 写入寄存器数据
+                    response = client.write_registers(min_address, registers)
+
+                    if not response.isError():
+                        # print(f"[{datetime.now()}] ✅ 通道{channels}批量写入成功: {total_registers}个寄存器")
+                        return True
+                    else:
+                        print(f"[{datetime.now()}] ❌ 通道{channels}批量写入失败: {response}")
+                        return False
+
+                except Exception as e:
+                    print(f"[{datetime.now()}] 通道{channels}写入异常: {e}")
+                    return False
+
+        except Exception as e:
+            print(f"[{datetime.now()}] 通道{channels}数据处理异常: {e}")
+            return False
     # --- 控制接口 ---
 
     def remote_start(self) -> bool:

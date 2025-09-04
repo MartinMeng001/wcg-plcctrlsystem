@@ -322,6 +322,40 @@ class SortingTaskManager:
 
         return task_executed
 
+    def _process_weight_sorting_batch(self, all_channels_data: Dict[str, List[Dict[str, Any]]]):
+        """批量版本的重量分选处理 - 已经有数据，无需重新读取"""
+        if not self.enable_weight_sorting or not self.weight_ranges:
+            return
+
+        # 收集所有需要更新的分选等级
+        grade_updates = {'A': {}, 'B': {}, 'C': {}, 'D': {}}
+        processed_count = 0
+
+        for channel_name, channel_data in all_channels_data.items():
+            if not channel_data:
+                continue
+
+            channel_letter = channel_name.split('_')[1]
+
+            for item in channel_data:
+                if item['grade'] == 100:  # 待处理
+                    weight = item['weight']
+                    detection_record = self.weight_service.process_detection_fast(weight)
+
+                    if detection_record.detection_success:
+                        # 添加到批量更新列表
+                        grade_updates[channel_letter][item['sequence']] = detection_record.kick_channel
+                        processed_count += 1
+
+        # 执行批量写入 - 使用已有的数据，无需重新读取
+        if processed_count > 0:
+            if self.plc.batch_set_grades(grade_updates):
+                self.stats['weight_sorted_count'] += processed_count
+                self.stats['total_processed'] += processed_count
+                print(f"批量重量分选完成: {processed_count}个")
+            else:
+                print(f"批量重量分选失败")
+
     def _process_weight_sorting(self, all_channels_data: Dict[str, List[Dict[str, Any]]]):
         """处理重量分拣"""
         if not self.enable_weight_sorting or not self.weight_ranges:
@@ -354,12 +388,12 @@ class SortingTaskManager:
                             detection_record.kick_channel
                         )
                         processed_count += 1
-                        # if self.plc.set_channel_grade(channel_letter, item['sequence'], detection_record.kick_channel):
-                        #     print(
-                        #         f"[{datetime.now()}] ✅ 通道{channel_letter}分选{item['sequence']}: 重量{weight}g → 等级{detection_record.determined_grade} (重量分拣)")
-                        #     processed_count += 1
-                        # else:
-                        #     print(f"[{datetime.now()}] ❌ 通道{channel_letter}分选{item['sequence']}: 设置失败")
+                        if self.plc.set_channel_grade(channel_letter, item['sequence'], detection_record.kick_channel):
+                            print(
+                                f"[{datetime.now()}] ✅ 通道{channel_letter}分选{item['sequence']}: 重量{weight}g → 等级{detection_record.determined_grade} (重量分拣)")
+                            processed_count += 1
+                        else:
+                            print(f"[{datetime.now()}] ❌ 通道{channel_letter}分选{item['sequence']}: 设置失败")
                     else:
                         # 检测失败的情况
                         self._executor.submit(
@@ -375,7 +409,7 @@ class SortingTaskManager:
             if processed_count > 0:
                 self.stats['weight_sorted_count'] += processed_count
                 self.stats['total_processed'] += processed_count
-                print(f"[{datetime.now()}] 🎯 本次按重量分选了 {processed_count} 个")
+                # print(f"[{datetime.now()}] 🎯 本次按重量分选了 {processed_count} 个")
                     # 根据重量范围确定分拣等级
         #             for weight_range in self.weight_ranges:
         #                 if weight_range.matches(weight):
@@ -430,8 +464,8 @@ class SortingTaskManager:
                     # self._process_custom_sorting()
 
                     # 定期打印状态
-                    if self.loop_count % self.log_interval == 0:
-                        self._print_status(all_channels_data)
+                    # if self.loop_count % self.log_interval == 0:
+                    #     self._print_status(all_channels_data)
                 else:
                     if self.loop_count % self.log_interval == 0:
                         print(f"[{datetime.now()}] ⚠️ 读取通道数据失败")

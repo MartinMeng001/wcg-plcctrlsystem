@@ -11,6 +11,7 @@ class ColorDetector(BaseDetector):
     def __init__(self):
         super().__init__('ColorDetector')
         self._result = None  # 内部变量用于存储检测结果
+        self._counter = None
 
     def start_detection(self):
         """
@@ -26,6 +27,9 @@ class ColorDetector(BaseDetector):
         import random
         self._result = random.choice(['red', 'green'])
         print(f"[{self.name}] - 检测完成，结果: {self._result}")
+
+    def start_detection_with_counter(self, counter):
+        self._counter = counter
 
     def get_result(self):
         """
