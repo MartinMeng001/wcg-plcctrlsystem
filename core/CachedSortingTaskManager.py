@@ -178,7 +178,7 @@ class CachedSortingTaskManager:
                     # 使用重量检测服务进行分拣判断
                     # detection_record = self.weight_service.process_detection_fast(weight)
 
-                    kick_ch = get_data_manager().set_value('weight', int(weight), self._count)
+                    kick_ch = get_data_manager().set_value(channel_letter, 'weight', int(weight), self._count)
                     if kick_ch is not None:
                     #if detection_record.detection_success:
                         # 直接修改缓存数据中的分选等级

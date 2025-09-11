@@ -37,12 +37,13 @@ class SugarDetector(BaseDetector):
     STATUS_SUCCESS = 2  # 采集成功
     STATUS_FAILED = 3  # 采集失败
 
-    def __init__(self, host='192.168.0.20', port=502, modbus_id=1, polling_interval=0.05):
+    def __init__(self, host='192.168.0.20', port=502, modbus_id=1, polling_interval=0.05, channel_name=''):
         super().__init__('SugarDetector')
         self.host = host
         self.port = port
         self.modbus_id = modbus_id
         self._counter = 0
+        self.channelName = channel_name
         self.polling_interval = max(0.05, polling_interval)  # 最小50ms，符合协议要求
 
         # 线程控制
@@ -346,7 +347,7 @@ class SugarDetector(BaseDetector):
                     sugar_content = self._convert_register_value(sugar_raw)
                     acid_content = self._convert_register_value(acid_raw)
 
-                    get_data_manager().set_value('water', sugar_content, self._counter)
+                    get_data_manager().set_value(self.channelName, 'water', sugar_content, self._counter)
 
                     self.logger.info(
                         f"[{self.name}] - 获得新检测结果: 糖度={sugar_content}, 酸度={acid_content}, 流水号={serial_number}")

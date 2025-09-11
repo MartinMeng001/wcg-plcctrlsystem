@@ -1,6 +1,8 @@
 # __init__.py
 
 from .DataManager import DataManager
+from .config_manager import ConfigManager
+from .template_manager import TemplateManager, Template
 
 # 实例化 DataManager 类
 # 注意：这里的 'config.xml' 需要根据你的实际文件路径进行修改
@@ -17,3 +19,13 @@ def init_data_manager(file_name):
 def get_data_manager():
     global _data_manager
     return _data_manager
+
+# 导出所有相关类和函数
+__all__ = [
+    'DataManager',
+    'ConfigManager',
+    'TemplateManager',
+    'Template',
+    'init_data_manager',
+    'get_data_manager'
+]

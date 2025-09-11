@@ -11,14 +11,13 @@ class MainController:
     主控制器，负责信号监测和任务协调。
     """
 
-    def __init__(self, detection_manager, plc_communicator, task_manager, data_manager): # 增加 task_manager 参数
+    def __init__(self, detection_manager, plc_communicator, task_manager): # 增加 task_manager 参数
         self.detection_manager = detection_manager
         self.plc_communicator = plc_communicator
         self.task_manager = task_manager # 保存 SortingTaskManager 实例
         self.last_signal_state = 0  # 假设初始信号为低电平
         self.new_count = 0
         self.detection_manager.start_all_detections()
-        self.dataManager = data_manager
 
     def run_cycle(self, current_signal):
         """

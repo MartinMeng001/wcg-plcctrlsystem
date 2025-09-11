@@ -41,13 +41,56 @@ if __name__ == "__main__":
     sorting_task_manager = CachedSortingTaskManager(plc_communicator, async_weight_service, task_counter)
     # 新增: 实例化糖度检测器
     # 注意：需要在config.py中添加内检仪的IP配置
-    SUGAR_DETECTOR_IP = config.SUGAR_DETECTOR_HOST # 内检仪IP，应该从config.py读取
-    sugar_detector = SugarDetector(
-        host=SUGAR_DETECTOR_IP,
-        port=502,
-        modbus_id=1,
-        polling_interval=0.1  # 100ms轮询间隔
-    )
+    water_config_A = data_manager.config_manager.get_water_detector_config(channel_id="1")#config.SUGAR_DETECTOR_HOST # 内检仪IP，应该从config.py读取
+    if water_config_A:
+        ip, port = water_config_A
+        sugar_detector = SugarDetector(
+            host=ip,
+            port=port,
+            modbus_id=1,
+            polling_interval=0.1,  # 100ms轮询间隔
+            channel_name="A"
+        )
+        detection_manager.register_detector(sugar_detector)
+
+    water_config_B = data_manager.config_manager.get_water_detector_config(
+        channel_id="2")
+    if water_config_B:
+        ip, port = water_config_B
+        sugar_detector = SugarDetector(
+            host=ip,
+            port=port,
+            modbus_id=1,
+            polling_interval=0.1,  # 100ms轮询间隔
+            channel_name="B"
+        )
+        detection_manager.register_detector(sugar_detector)
+
+    water_config_C = data_manager.config_manager.get_water_detector_config(
+        channel_id="3")
+    if water_config_C:
+        ip, port = water_config_C
+        sugar_detector = SugarDetector(
+            host=ip,
+            port=port,
+            modbus_id=1,
+            polling_interval=0.1,  # 100ms轮询间隔
+            channel_name="C"
+        )
+        detection_manager.register_detector(sugar_detector)
+
+    water_config_D = data_manager.config_manager.get_water_detector_config(
+        channel_id="4")
+    if water_config_D:
+        ip, port = water_config_D
+        sugar_detector = SugarDetector(
+            host=ip,
+            port=port,
+            modbus_id=1,
+            polling_interval=0.1,  # 100ms轮询间隔
+            channel_name="D"
+        )
+        detection_manager.register_detector(sugar_detector)
 
     # 配置重量分拣
     weight_ranges = [
@@ -64,15 +107,19 @@ if __name__ == "__main__":
     # 新增: 注册重量检测器，将 plc_communicator 实例传递给它
     # detection_manager.register_detector(WeightDetector(plc_communicator))
     # 新增: 注册糖度检测器
-    detection_manager.register_detector(sugar_detector)
+
     # ... 注册其他检测器，例如： size_detector
 
     # 3. 实例化主控制器并传入依赖
     # 核心变更: 将 sorting_task_manager 实例作为参数传递给 MainController
-    main_controller = MainController(detection_manager, plc_communicator, sorting_task_manager, data_manager)
+    main_controller = MainController(detection_manager, plc_communicator, sorting_task_manager)
 
     # 启动API服务器（独立线程）
-    api_thread = start_api_server_thread(port=5000)
+    api_thread = start_api_server_thread(
+        port=5000,
+        detection_manager=detection_manager,  # 现有参数
+        data_manager=data_manager  # 新增: 传递data_manager
+    )
     # 5. 启动 SortingTaskManager 任务
     sorting_task_manager.start()
     # 4. 运行主循环

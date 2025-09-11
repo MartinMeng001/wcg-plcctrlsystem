@@ -1,5 +1,5 @@
 """
-Flask应用创建和配置
+Flask应用创建和配置 (更新版本)
 """
 
 from flask import Flask
@@ -26,7 +26,7 @@ def create_app(config=None):
     # 启用CORS支持前端跨域请求
     CORS(app, resources={
         r"/api/*": {
-            "origins": ["http://localhost:3000", "http://localhost:8080"],  # 前端开发服务器
+            "origins": ["http://localhost:3000", "http://localhost:8080"],
             "methods": ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
             "allow_headers": ["Content-Type", "Authorization"]
         }
@@ -34,10 +34,12 @@ def create_app(config=None):
 
     # 注册API蓝图
     from .weight_api import weight_bp
-    from .sugar_api import sugar_bp  # 新增: 糖度API蓝图
+    from .sugar_api import sugar_bp
+    from .config_api import config_bp  # 新增: config.xml API蓝图
 
     app.register_blueprint(weight_bp, url_prefix='/api')
-    app.register_blueprint(sugar_bp, url_prefix='/api')  # 新增
+    app.register_blueprint(sugar_bp, url_prefix='/api')
+    app.register_blueprint(config_bp, url_prefix='/api')  # 新增
 
     # 全局错误处理
     @app.errorhandler(404)
@@ -65,18 +67,20 @@ def create_app(config=None):
             'version': '1.0.0'
         }
 
-    # 新增: 系统概览端点
+    # 系统概览端点
     @app.route('/api/system/overview')
     def system_overview():
         """获取系统整体状态概览"""
         try:
             from .weight_api import get_weight_service
             from .sugar_api import get_sugar_service, get_detection_manager
+            from .config_api import get_data_manager  # 新增
 
             # 获取各服务状态
             weight_service = get_weight_service()
             sugar_service = get_sugar_service()
             detection_manager = get_detection_manager()
+            data_manager = get_data_manager()  # 新增
 
             weight_status = weight_service.get_status()
             sugar_status = sugar_service.get_status()
@@ -89,32 +93,29 @@ def create_app(config=None):
                 'data': {
                     'weight_detection': {
                         'status': weight_status.get('status'),
-                        'recent_records': weight_status.get('recent_records_count', 0),
-                        'last_detection': weight_status.get('last_detection_time')
+                        'recent_records': weight_status.get('recent_records', [])[:5]
                     },
                     'sugar_detection': {
                         'status': sugar_status.get('status'),
-                        'recent_records': sugar_status.get('recent_records_count', 0),
-                        'last_detection': sugar_status.get('last_detection_time'),
-                        'realtime_status': all_results.get('SugarDetector', {}).get('status')
+                        'latest_reading': sugar_status.get('latest_reading')
                     },
-                    'detectors': {
-                        detector.name: {
-                            'active': hasattr(detector,
-                                              'is_detection_active') and detector.is_detection_active() if hasattr(
-                                detector, 'is_detection_active') else True
-                        }
-                        for detector in detection_manager.detectors
+                    'config': {  # 新增: 配置状态
+                        'current_template_id': data_manager.cur_template_id,
+                        'weight_offset': data_manager.weight_offset,
+                        'water_offset': data_manager.water_offset,
+                        'config_file': data_manager.config_manager.file_path
                     },
+                    'realtime_data': all_results,
                     'timestamp': datetime.now().isoformat()
                 }
             }
 
         except Exception as e:
+            # current_app.logger.error(f"获取系统概览失败: {e}")
             return {
                 'success': False,
                 'message': f'获取系统概览失败: {str(e)}',
-                'timestamp': datetime.now().isoformat()
+                'data': None
             }, 500
 
     return app

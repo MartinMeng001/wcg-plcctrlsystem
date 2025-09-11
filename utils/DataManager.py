@@ -27,8 +27,8 @@ class DataManager:
         self.weight_offset = 0
         self.water_offset = 0
 
-        self.weight_queue = None
-        self.water_queue = None
+        self.weight_queue = {}
+        self.water_queue = {}
 
         self._load_all_configs()
 
@@ -50,15 +50,15 @@ class DataManager:
                   f"weight_offset={self.weight_offset}, water_offset={self.water_offset}")
 
             # 2. 如果offset大于0，创建AlignedQueue队列
-            if self.weight_offset > 0:
-                self.weight_queue = AlignedQueue(max_length=self.weight_offset + 10)
-            if self.water_offset > 0:
-                self.water_queue = AlignedQueue(max_length=self.water_offset + 10)
+            # if self.weight_offset > 0:
+            #     self.weight_queue = AlignedQueue(max_length=self.weight_offset + 10)
+            # if self.water_offset > 0:
+            #     self.water_queue = AlignedQueue(max_length=self.water_offset + 10)
 
             # 3. 初始化模板管理器
             self.template_manager = TemplateManager(self.config_manager)
 
-    def set_value(self, value_name: str, value: Any, position: int) -> int | None:
+    def set_value(self, line_id: str, value_name: str, value: Any, position: int) -> int | None:
         """
         设置 weight 或 water 的值。
 
@@ -72,10 +72,14 @@ class DataManager:
         """
         if value_name == 'weight':
             offset = self.weight_offset
-            queue = self.weight_queue
+            if line_id not in self.weight_queues:
+                self.weight_queues[line_id] = AlignedQueue(max_length=offset + 10)
+            queue = self.weight_queues[line_id]
         elif value_name == 'water':
             offset = self.water_offset
-            queue = self.water_queue
+            if line_id not in self.water_queues:
+                self.water_queues[line_id] = AlignedQueue(max_length=offset + 10)
+            queue = self.water_queues[line_id]
         else:
             print(f"错误：不支持的数据类型 '{value_name}'。")
             return None
@@ -101,21 +105,29 @@ class DataManager:
 
             # 获取另一个值
             if value_name == 'weight':
-                water_value = self._get_offset_value('water', position)
+                water_value = self._get_offset_value(line_id, 'water', position)
                 if water_value is None: return None
                 return current_template.get_channel(weight_value=int(value), water_value=int(water_value))
 
             elif value_name == 'water':
-                weight_value = self._get_offset_value('weight', position)
+                weight_value = self._get_offset_value(line_id, 'weight', position)
                 if weight_value is None: return None
                 return current_template.get_channel(weight_value=int(weight_value), water_value=int(value))
 
-    def _get_offset_value(self, value_name: str, current_position: int) -> Any | None:
+    def _get_offset_value(self, line_id: str, value_name: str, current_position: int) -> Any | None:
         """
         获取队列中对应位置的值。
         """
-        offset = self.weight_offset if value_name == 'weight' else self.water_offset
-        queue = self.weight_queue if value_name == 'weight' else self.water_queue
+        if value_name == 'weight':
+            queue = self.weight_queues.get(line_id)
+            offset = self.weight_offset
+        else:  # 'water'
+            queue = self.water_queues.get(line_id)
+            offset = self.water_offset
+
+        # 2. 如果队列不存在，直接返回 None
+        if not queue:
+            return None
 
         # 计算对齐位置
         alignment_position = current_position - offset
@@ -129,6 +141,14 @@ class DataManager:
             # print(f"错误：未能在位置 {current_position} 找到与 '{value_name}' 对应的对齐数据。")
             return None
 
+    def reload_config(self):
+        """
+        手动重新加载配置，并根据版本号决定是否更新。
+        """
+        if self._load_all_configs():
+            print("配置更新成功。")
+        else:
+            print("配置已是最新版本。")
 
 # --- 示例用法 ---
 # if __name__ == "__main__":

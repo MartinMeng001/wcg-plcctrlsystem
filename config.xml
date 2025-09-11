@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8" ?>
+<?xml version='1.0' encoding='utf-8'?>
 <system>
     <config>
         <curtemplateId>1</curtemplateId>
@@ -170,7 +170,7 @@
             </detectors>
         </template>
 		<template id="3" name="ScoreFirst">
-            <scores enable="0">
+            <scores enable="1">
                 <score out="7" subout="8">80</score>
                 <score out="5" subout="6">60</score>
                 <score out="9" subout="10">40</score>
