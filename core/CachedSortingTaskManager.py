@@ -1,16 +1,14 @@
 # cached_sorting_task_manager.py
 
-import time
 import threading
+import time
 from datetime import datetime
 from typing import List, Dict, Optional, Any
-from concurrent.futures import ThreadPoolExecutor
-from dataclasses import dataclass
-from utils import get_data_manager
 
 # 导入原有的数据结构
 from core.sorting_task_manager import WeightRange, CustomSortingTask, Counter
-from services.weight.AsyncWeightDetectionService import AsyncWeightDetectionService
+from services.events import get_event_service
+from utils import get_data_manager
 
 
 class CachedSortingTaskManager:
@@ -25,7 +23,7 @@ class CachedSortingTaskManager:
     性能提升：网络通信从"1读+N写" → "1读+1写"
     """
 
-    def __init__(self, plc_communicator, weight_service: AsyncWeightDetectionService, counter: Counter = None):
+    def __init__(self, plc_communicator, counter: Counter = None):
         """
         初始化缓存优化版分拣任务管理器
 
@@ -36,7 +34,6 @@ class CachedSortingTaskManager:
         """
         self.plc = plc_communicator
         self.counter = counter if counter is not None else Counter()
-        self.weight_service = weight_service
         self._count = 0
 
         # 配置参数（与原版本相同）
@@ -157,6 +154,7 @@ class CachedSortingTaskManager:
 
         data_modified = False
         processed_count = 0
+        event_service = get_event_service()
 
         for channel_name, channel_data in cached_channels_data.items():
             if not channel_data:
@@ -187,6 +185,41 @@ class CachedSortingTaskManager:
                         data_modified = True
                         processed_count += 1
 
+                        source_data={"channel": channel_letter, "sequence": sequence, "weight": weight}
+                        event_service.emit_sorting_reject_event(
+                            channel=kick_ch,
+                            weight=weight,
+                            grade=kick_ch,
+                            source_data=source_data
+                        )
+                        if kick_ch in [1, 2, 3, 4]:
+                            event_service.emit_sorting_reject_event(
+                                channel=kick_ch,
+                                weight=weight,
+                                grade=kick_ch,
+                                source_data=source_data
+                            )
+                        elif kick_ch in [5, 6]:
+                            event_service.emit_sorting_qualified_event(
+                                qualified_type=1,
+                                weight=weight,
+                                grade=kick_ch,
+                                source_data=source_data
+                            )
+                        elif kick_ch in [7, 8]:
+                            event_service.emit_sorting_qualified_event(
+                                qualified_type=2,
+                                weight=weight,
+                                grade=kick_ch,
+                                source_data=source_data
+                            )
+                        elif kick_ch in [9, 10]:
+                            event_service.emit_sorting_qualified_event(
+                                qualified_type=3,
+                                weight=weight,
+                                grade=kick_ch,
+                                source_data=source_data
+                            )
                         print(f"[{datetime.now()}] 缓存修改: 通道{channel_letter}序号{sequence}: "
                               f"重量{weight}g → 等级{kick_ch}")
                     else:

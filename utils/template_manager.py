@@ -100,6 +100,7 @@ class Template:
 
         # 2. 如果 scores 为 enable，则使用得分筛选法
         if self._scores_enabled:
+            print(f"权重规则")
             # 获取权重和最大值
             wg_weight_str = self._detectors.get("weight", {}).get("wg", "0")
             wg_water_str = self._detectors.get("water", {}).get("wg", "0")
@@ -132,11 +133,11 @@ class Template:
                 if detector.get("wg") == "100":
                     dominant_detector_name = name
                     break
-
+            print(f"规则 {dominant_detector_name}, weight {weight_value}, water {water_value}")
             if dominant_detector_name:
                 dominant_value = weight_value if dominant_detector_name == "weight" else water_value
                 detector = self._detectors[dominant_detector_name]
-
+                print(f"规则 {dominant_detector_name} 判定值 {dominant_value}")
                 for level in detector["goodLevel"]:
                     if level["min"] <= dominant_value <= level["max"]:
                         print(f"命中 {dominant_detector_name} goodLevel 规则")

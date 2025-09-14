@@ -72,14 +72,14 @@ class DataManager:
         """
         if value_name == 'weight':
             offset = self.weight_offset
-            if line_id not in self.weight_queues:
-                self.weight_queues[line_id] = AlignedQueue(max_length=offset + 10)
-            queue = self.weight_queues[line_id]
+            if line_id not in self.weight_queue:
+                self.weight_queue[line_id] = AlignedQueue(max_length=offset + 10)
+            queue = self.weight_queue[line_id]
         elif value_name == 'water':
             offset = self.water_offset
-            if line_id not in self.water_queues:
-                self.water_queues[line_id] = AlignedQueue(max_length=offset + 10)
-            queue = self.water_queues[line_id]
+            if line_id not in self.water_queue:
+                self.water_queue[line_id] = AlignedQueue(max_length=offset + 10)
+            queue = self.water_queue[line_id]
         else:
             print(f"错误：不支持的数据类型 '{value_name}'。")
             return None
@@ -96,7 +96,7 @@ class DataManager:
 
         # 5. 当offset等于0时，进行筛选
         elif offset == 0:
-            print(f"'{value_name}' 值 {value} 进行筛选，位置 {position}。")
+            print(f"'{value_name}' 值 {value} 进行筛选，位置 {position}，模板 {self.cur_template_id}")
             # 获取当前模板
             current_template = self.template_manager.get_template(self.cur_template_id)
             if not current_template:
@@ -106,7 +106,10 @@ class DataManager:
             # 获取另一个值
             if value_name == 'weight':
                 water_value = self._get_offset_value(line_id, 'water', position)
-                if water_value is None: return None
+                if water_value is None:
+                    print(f"错误：未找到water_value position:{position}")
+                    water_value = -100
+                    # return None
                 return current_template.get_channel(weight_value=int(value), water_value=int(water_value))
 
             elif value_name == 'water':
@@ -119,10 +122,10 @@ class DataManager:
         获取队列中对应位置的值。
         """
         if value_name == 'weight':
-            queue = self.weight_queues.get(line_id)
+            queue = self.weight_queue.get(line_id)
             offset = self.weight_offset
         else:  # 'water'
-            queue = self.water_queues.get(line_id)
+            queue = self.water_queue.get(line_id)
             offset = self.water_offset
 
         # 2. 如果队列不存在，直接返回 None

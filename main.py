@@ -19,7 +19,40 @@ from api import start_api_server_thread
 from services import create_weight_service
 # 配置及分拣逻辑部分
 from utils import *
+# Event
+from services.events import init_event_service, get_event_service
+from services.events import BatchConfig, CommunicationStatus
 
+# 1. 在程序启动时初始化事件服务
+def initialize_services():
+    # 配置批处理参数（可选）
+    batch_config = BatchConfig(
+        batch_size=50,  # 根据您的事件频率调整
+        flush_interval=2.0,  # 根据延迟容忍度调整
+        max_buffer_size=500  # 根据内存容量调整
+    )
+
+    # 初始化事件服务
+    event_service = init_event_service(
+        db_path="production_events.db",
+        batch_config=batch_config,
+        use_optimized_storage=True  # 使用优化版存储
+    )
+
+    # 启动事件服务
+    event_service.start()
+
+    return event_service
+
+
+def shutdown_services():
+    from services.events import get_event_service
+
+    event_service = get_event_service()
+    if event_service.running:
+        event_service.stop()
+
+    print("事件服务已停止")
 # 模拟一个简单的信号源
 # 注意：现在我们的脉冲检测功能将由 PulseDetector 实例本身完成，
 # 所以 main.py 不再需要模拟信号，而是从 PulseDetector 获取实时信号状态。
@@ -29,6 +62,7 @@ if __name__ == "__main__":
     # 配置文件
     file_name = "config.xml"
     data_manager = init_data_manager(file_name)
+    event_service = initialize_services()
     # 1. 实例化各个模块
     detection_manager = DetectionManager()
     plc_communicator = PLCCommunicator(PLC_HOST, PLC_PORT)
@@ -36,9 +70,9 @@ if __name__ == "__main__":
 
     # 新增: 实例化计数器和 SortingTaskManager
     task_counter = Counter()
-    async_weight_service = create_weight_service()
+    # async_weight_service = create_weight_service()
     # sorting_task_manager = SortingTaskManager(plc_communicator, async_weight_service, task_counter)
-    sorting_task_manager = CachedSortingTaskManager(plc_communicator, async_weight_service, task_counter)
+    sorting_task_manager = CachedSortingTaskManager(plc_communicator, task_counter)
     # 新增: 实例化糖度检测器
     # 注意：需要在config.py中添加内检仪的IP配置
     water_config_A = data_manager.config_manager.get_water_detector_config(channel_id="1")#config.SUGAR_DETECTOR_HOST # 内检仪IP，应该从config.py读取
@@ -144,3 +178,4 @@ if __name__ == "__main__":
         plc_communicator.close()  # 在程序结束时关闭PLC连接
         # 新增: 停止 SortingTaskManager 任务
         sorting_task_manager.stop()
+        shutdown_services()

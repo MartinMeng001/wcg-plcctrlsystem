@@ -1,10 +1,13 @@
 # core/main_controller.py
 
+import time
+from datetime import datetime
 from .detection_manager import DetectionManager
 from .plc_communicator import PLCCommunicator
 from core.plc_communicator import PLCCommunicator
 from core.sorting_task_manager import SortingTaskManager
 from config import PLC_HOST, PLC_PORT, CHANNEL_MAP
+from services.events import get_event_service
 
 class MainController:
     """
@@ -18,22 +21,39 @@ class MainController:
         self.last_signal_state = 0  # 假设初始信号为低电平
         self.new_count = 0
         self.detection_manager.start_all_detections()
+        self.current_time = 0
 
     def run_cycle(self, current_signal):
         """
         执行一个周期，检查信号边缘并执行相应操作。
         """
         # print(f"\n[MainController] - 检查信号...")
+        event_service = get_event_service()
         is_rising_edge = (current_signal == 1 and self.last_signal_state == 0)
         is_falling_edge = (current_signal == 0 and self.last_signal_state == 1)
 
+
         if is_rising_edge:
+            period = 0
+            if self.current_time == 0:
+                self.current_time = time.time()
+            else:
+                cur = time.time()
+                period = cur - self.current_time
+                self.current_time = cur
             # print("[MainController] - 检测到上升沿，开始检测！")
             #self.detection_manager.start_all_detections()
             # 在这里增加计数值
             new_count = self.task_manager.increment_count()
             self.detection_manager.sync_counts(new_count)
             # self.task_manager.set_count(new_count)
+            if period > 0:
+                event_service.emit_pulse_frequency_event(
+                    frequency=1.0/period,
+                    period=period,
+                    pulse_count=new_count,
+                    measurement_duration=period,
+                )
             print(f"[MainController] - 计数器更新：新值为 {new_count}")
 
         # if is_falling_edge:
